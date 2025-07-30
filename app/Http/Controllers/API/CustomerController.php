@@ -1,10 +1,10 @@
-<?php
+<?php // <<--- Certifique-se de que esta é a PRIMEIRA linha, sem nada antes
 
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Customer; // Certifique-se de que o modelo Customer está importado
+use App\Models\Customer;
 
 class CustomerController extends Controller
 {
@@ -13,15 +13,14 @@ class CustomerController extends Controller
      */
     public function index(Request $request)
     {
-        // Começa a construir a consulta
         $query = Customer::orderBy('order_date', 'desc');
 
         // Se o parâmetro 'all' estiver presente, retorne todos os clientes sem paginação
         if ($request->has('all')) {
-            return response()->json($query->get()); // Retorna todos os clientes
+            return response()->json($query->get());
         }
 
-        // FILTROS DE PESQUISA (texto) - (mantido do ajuste anterior)
+        // FILTROS DE PESQUISA (texto)
         if ($request->has('search')) {
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
@@ -31,11 +30,24 @@ class CustomerController extends Controller
             });
         }
 
-        // FILTROS DE STATUS (checkboxes) - (mantido do ajuste anterior)
-        if ($request->has('paid') && $request->input('paid') !== null) {
-            $query->where('paid', (bool) $request->input('paid'));
+        // NOVO: Filtros baseados em amount_paid (payment_status)
+        if ($request->has('payment_status') && $request->input('payment_status') !== null) {
+            $status = $request->input('payment_status');
+            if ($status === 'fully_paid') {
+                // Clientes onde o valor pago é maior ou igual ao valor do pedido
+                $query->whereRaw('amount_paid >= order_value');
+            } elseif ($status === 'partially_paid') {
+                // Clientes onde o valor pago é maior que 0 E menor que o valor do pedido
+                $query->whereRaw('amount_paid > 0 AND amount_paid < order_value');
+            } elseif ($status === 'not_paid') {
+                // Clientes onde o valor pago é 0 ou nulo
+                $query->where(function ($q) {
+                    $q->where('amount_paid', 0)->orWhereNull('amount_paid');
+                });
+            }
         }
 
+        // Mantém o filtro de entrega
         if ($request->has('delivered') && $request->input('delivered') !== null) {
             $query->where('delivered', (bool) $request->input('delivered'));
         }
@@ -52,27 +64,24 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
-        // Validação dos dados de entrada
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
-            'order_description' => 'nullable|string', // Permite que a descrição seja nula
-            'order_value' => 'required|numeric',
-            'wholesale_value' => 'required|numeric',
+            'order_description' => 'nullable|string',
+            'order_value' => 'required|numeric|min:0', // Validar valor do pedido
+            'wholesale_value' => 'required|numeric|min:0', // Validar valor de atacado
+            'amount_paid' => 'nullable|numeric|min:0', // <<--- ADICIONADO: Validação para amount_paid
             'order_date' => 'required|date',
             'city' => 'nullable|string|max:255',
-            'paid' => 'boolean',
+            // 'paid' => 'boolean', // <<--- REMOVIDO: Campo 'paid' não existe mais
             'delivered' => 'boolean',
         ]);
 
-        // Define valores padrão para 'paid' e 'delivered' se não forem enviados (checkboxes desmarcados)
-        // Isso é crucial para que o DB entenda false se a checkbox não for marcada
-        $validatedData['paid'] = $request->input('paid', false);
-        $validatedData['delivered'] = $request->input('delivered', false);
+        // Define amount_paid para 0.00 se não for fornecido ou for nulo
+        $validatedData['amount_paid'] = $request->input('amount_paid', 0.00);
+        $validatedData['delivered'] = $request->input('delivered', false); // Mantém delivered
 
-        // Cria o novo cliente no banco de dados
         $customer = Customer::create($validatedData);
 
-        // Retorna o cliente criado com status HTTP 201 (Created)
         return response()->json($customer, 201);
     }
 
@@ -81,22 +90,22 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $customer)
     {
-        // Validação para a atualização
         $validatedData = $request->validate([
-            'name' => 'required|string|max:255', // Ajustado para 255
+            'name' => 'required|string|max:255',
             'order_description' => 'nullable|string',
-            'order_value' => 'required|numeric',
-            'wholesale_value' => 'required|numeric',
+            'order_value' => 'required|numeric|min:0',
+            'wholesale_value' => 'required|numeric|min:0',
+            'amount_paid' => 'nullable|numeric|min:0', // <<--- ADICIONADO: Validação para amount_paid
             'order_date' => 'required|date',
             'city' => 'nullable|string|max:255',
-            'paid' => 'boolean',
+            // 'paid' => 'boolean', // <<--- REMOVIDO: Campo 'paid' não existe mais
             'delivered' => 'boolean',
         ]);
 
-        // Atualiza o cliente no banco de dados
-        $customer->update($validatedData);
+        // Define amount_paid para 0.00 se não for fornecido ou for nulo
+        $validatedData['amount_paid'] = $request->input('amount_paid', 0.00);
 
-        // Retorna o cliente atualizado com status HTTP 200 (OK)
+        $customer->update($validatedData);
         return response()->json($customer, 200);
     }
 
@@ -105,10 +114,7 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
-        // Deleta o cliente
         $customer->delete();
-
-        // Retorna uma resposta vazia com status HTTP 204 (No Content)
         return response()->json(null, 204);
     }
 }

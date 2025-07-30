@@ -12,7 +12,7 @@
       <div class="card-header">Filtros</div>
       <div class="card-body">
         <div class="row gy-3">
-          <div class="col-md-6">
+          <div class="col-md-5">
             <label for="search" class="form-label">Pesquisar</label>
             <input
               v-model.lazy="filters.search"
@@ -23,16 +23,17 @@
               placeholder="Nome, descrição ou cidade"
             />
           </div>
-          <div class="col-md-3">
+          <div class="col-md-4">
             <label class="form-label">Status Pagamento</label>
             <select
-              v-model="filters.paid"
+              v-model="filters.payment_status"
               @change="applyFilters"
               class="form-select"
             >
               <option :value="null">Todos</option>
-              <option value="1">Pago</option>
-              <option value="0">Não Pago</option>
+              <option value="fully_paid">Pago Totalmente</option>
+              <option value="partially_paid">Pago Parcialmente</option>
+              <option value="not_paid">Não Pago</option>
             </select>
           </div>
           <div class="col-md-3">
@@ -65,8 +66,14 @@
           <div class="fw-bold">{{ c.name }}</div>
           <div>{{ c.order_description }}</div>
           <div class="mt-1">
-            R$ {{ parseFloat(c.order_value).toFixed(2) }} —
+            Pedido: R$ {{ parseFloat(c.order_value).toFixed(2) }} —
             Atacado: R$ {{ parseFloat(c.wholesale_value).toFixed(2) }}
+          </div>
+          <div class="mt-1">
+            Pago: R$ {{ parseFloat(c.amount_paid || 0).toFixed(2) }}
+            <span v-if="c.order_value - (c.amount_paid || 0) > 0" class="text-danger small">
+                (Falta R$ {{ (c.order_value - (c.amount_paid || 0)).toFixed(2) }})
+            </span>
           </div>
           <div v-if="c.order_date" class="small text-muted">
             Pedido em: {{ formatDate(c.order_date) }}
@@ -77,9 +84,19 @@
           <div class="mt-2">
             <span
               class="badge me-1"
-              :class="c.paid ? 'bg-success' : 'bg-warning text-dark'"
+              :class="{
+                'bg-success': c.amount_paid >= c.order_value,
+                'bg-info': c.amount_paid > 0 && c.amount_paid < c.order_value,
+                'bg-warning text-dark': c.amount_paid == 0 || c.amount_paid == null,
+              }"
             >
-              {{ c.paid ? 'Pago' : 'Não Pago' }}
+              {{
+                c.amount_paid >= c.order_value
+                  ? 'Pago Totalmente'
+                  : c.amount_paid > 0
+                  ? 'Pago Parcialmente'
+                  : 'Não Pago'
+              }}
             </span>
             <span
               class="badge"
@@ -135,6 +152,7 @@
         </li>
       </ul>
     </nav>
+
     <div class="mt-4">
       <a href="/" class="btn btn-outline-primary">&larr; Dashboard</a>
     </div>
@@ -208,6 +226,17 @@
                   />
                 </div>
                 <div class="col-md-6">
+                  <label for="amountPaid" class="form-label">Valor Pago</label>
+                  <input
+                    v-model="form.amount_paid"
+                    @input="sanitizeNumber('amount_paid')"
+                    type="text"
+                    class="form-control"
+                    id="amountPaid"
+                    placeholder="e.g. 50,00 (se parcial)"
+                  />
+                </div>
+                <div class="col-md-6">
                   <label for="clientDate" class="form-label">Data do Pedido</label>
                   <input
                     v-model="form.order_date"
@@ -225,15 +254,6 @@
                     id="clientCity"
                     placeholder="Nome da Cidade"
                   />
-                </div>
-                <div class="col-md-3 form-check">
-                  <input
-                    v-model="form.paid"
-                    type="checkbox"
-                    id="paid"
-                    class="form-check-input"
-                  />
-                  <label for="paid" class="form-check-label">Pago</label>
                 </div>
                 <div class="col-md-3 form-check">
                   <input
@@ -282,9 +302,10 @@ const form = ref({
   order_description: '',
   order_value: '',
   wholesale_value: '',
+  amount_paid: '', // NOVO: Propriedade 'amount_paid'
   order_date: '',
   city: '',
-  paid: false,
+  // paid: false, // REMOVIDO
   delivered: false,
 });
 const isEditing = ref(false);
@@ -297,11 +318,10 @@ const pagination = ref({
   total: 0,
 });
 
-// NOVO: Estado para os filtros
 const filters = ref({
   search: '',
-  paid: null, // null para 'Todos', '1' para 'Pago', '0' para 'Não Pago'
-  delivered: null, // null para 'Todos', '1' para 'Entregue', '0' para 'Não Entregue'
+  payment_status: null, // NOVO: Mudei de 'paid' para 'payment_status'
+  delivered: null,
 });
 
 function formatDate(dateString) {
@@ -323,16 +343,14 @@ function closeFormModal() {
   clientFormModal.hide();
 }
 
-// Modificada a função fetch para incluir os parâmetros de filtro
 function fetch(page = 1) {
   const params = {
     page: page,
     search: filters.value.search,
-    paid: filters.value.paid,
+    payment_status: filters.value.payment_status, // NOVO: Usando payment_status
     delivered: filters.value.delivered,
   };
 
-  // Remove parâmetros vazios para não poluir a URL ou a requisição desnecessariamente
   Object.keys(params).forEach(key => {
     if (params[key] === '' || params[key] === null) {
       delete params[key];
@@ -340,7 +358,7 @@ function fetch(page = 1) {
   });
 
   axios
-    .get('/api/customers', { params: params }) // Envia os filtros como query parameters
+    .get('/api/customers', { params: params })
     .then((r) => {
       customers.value = r.data.data;
       pagination.value.currentPage = r.data.current_page;
@@ -350,17 +368,15 @@ function fetch(page = 1) {
     .catch(console.error);
 }
 
-// NOVO: Função para aplicar os filtros (reinicia a paginação para a primeira página)
 function applyFilters() {
   fetch(1);
 }
 
-// NOVO: Função para limpar os filtros
 function clearFilters() {
   filters.value.search = '';
-  filters.value.paid = null;
+  filters.value.payment_status = null; // Reinicia para null
   filters.value.delivered = null;
-  fetch(1); // Re-busca os dados com filtros limpos
+  fetch(1);
 }
 
 function goToPage(page) {
@@ -382,9 +398,10 @@ function resetForm() {
     order_description: '',
     order_value: '',
     wholesale_value: '',
+    amount_paid: '', // Reinicia amount_paid
     order_date: '',
     city: '',
-    paid: false,
+    // paid: false, // REMOVIDO
     delivered: false,
   };
 }
@@ -394,6 +411,7 @@ function add() {
     ...form.value,
     order_value: parseFloat(form.value.order_value) || 0,
     wholesale_value: parseFloat(form.value.wholesale_value) || 0,
+    amount_paid: parseFloat(form.value.amount_paid) || 0, // Garante que é número, default 0
   };
   axios
     .post('/api/customers', payload)
@@ -413,9 +431,10 @@ function startEdit(c) {
     order_description: c.order_description,
     order_value: String(c.order_value),
     wholesale_value: String(c.wholesale_value),
+    amount_paid: String(c.amount_paid || 0), // Preenche amount_paid
     order_date: c.order_date || '',
     city: c.city || '',
-    paid: Boolean(c.paid),
+    // paid: Boolean(c.paid), // REMOVIDO
     delivered: Boolean(c.delivered),
   };
   openFormModal(true);
@@ -433,6 +452,7 @@ function update() {
     ...form.value,
     order_value: parseFloat(form.value.order_value) || 0,
     wholesale_value: parseFloat(form.value.wholesale_value) || 0,
+    amount_paid: parseFloat(form.value.amount_paid) || 0, // Garante que é número, default 0
   };
   axios
     .put(`/api/customers/${editId.value}`, payload)
@@ -455,7 +475,7 @@ function remove(id) {
 }
 
 onMounted(() => {
-  fetch(); // Carrega a primeira página com os filtros iniciais (vazios)
+  fetch();
   clientFormModal = new Modal(document.getElementById('clientFormModal'));
 });
 </script>

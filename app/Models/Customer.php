@@ -19,7 +19,7 @@ class Customer extends Model
         'order_description',
         'order_value',
         'wholesale_value',
-        'paid',
+        'amount_paid',
         'delivered',
         'order_date',
         'city',
