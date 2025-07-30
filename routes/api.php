@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\CustomerController;
+use App\Http\Controllers\API\StockItemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,3 +18,8 @@ Route::get('customers', [CustomerController::class, 'index']);
 Route::post('customers', [CustomerController::class, 'store']);
 Route::put   ('customers/{customer}', [CustomerController::class, 'update']);
 Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);
+
+Route::get('stock-items', [StockItemController::class, 'index']);
+Route::post('stock-items', [StockItemController::class, 'store']);
+Route::delete('stock-items/{stockItem}', [StockItemController::class, 'destroy']);
+Route::get('stock-value', [StockItemController::class, 'getStockValue']); // <--- NOVA ROTA

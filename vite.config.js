@@ -16,6 +16,7 @@ export default defineConfig({
     alias: {
       // se quiser importar @heroicons mais facilmente
       '@heroicons': '/node_modules/@heroicons/vue/24/outline',
+      'vue': 'vue/dist/vue.esm-bundler.js'
     },
   },
 })

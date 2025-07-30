@@ -4,157 +4,156 @@
 
     <h1 class="mb-4">Clientes</h1>
 
-    <button @click="openFormModal(false)" class="btn btn-primary mb-4">
-      Adicionar Novo Cliente
-    </button>
+    <div class="row">
+      <div class="col-md-8">
+        <button @click="openFormModal(false)" class="btn btn-primary mb-4">
+          Adicionar Novo Cliente
+        </button>
 
-    <div class="card mb-4">
-      <div class="card-header">Filtros</div>
-      <div class="card-body">
-        <div class="row gy-3">
-          <div class="col-md-5">
-            <label for="search" class="form-label">Pesquisar</label>
-            <input
-              v-model.lazy="filters.search"
-              @change="applyFilters"
-              type="text"
-              class="form-control"
-              id="search"
-              placeholder="Nome, descrição ou cidade"
-            />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Status Pagamento</label>
-            <select
-              v-model="filters.payment_status"
-              @change="applyFilters"
-              class="form-select"
+        <ul class="list-group">
+          <li
+            v-for="c in customers"
+            :key="c.id"
+            class="list-group-item d-flex justify-content-between align-items-start"
+          >
+            <div>
+              <div class="fw-bold">{{ c.name }}</div>
+              <div style="white-space: pre-wrap;">{{ c.order_description }}</div>
+              <div class="mt-1">
+                Pedido: R$ {{ parseFloat(c.order_value).toFixed(2) }} —
+                Atacado: R$ {{ parseFloat(c.wholesale_value).toFixed(2) }}
+              </div>
+              <div class="mt-1">
+                Pago: R$ {{ parseFloat(c.amount_paid || 0).toFixed(2) }}
+                <span v-if="c.order_value - (c.amount_paid || 0) > 0" class="text-danger small">
+                    (Falta R$ {{ (c.order_value - (c.amount_paid || 0)).toFixed(2) }})
+                </span>
+              </div>
+              <div v-if="c.order_date" class="small text-muted">
+                Pedido em: {{ formatDate(c.order_date) }}
+              </div>
+              <div v-if="c.city" class="small text-muted">
+                Cidade: {{ c.city }}
+              </div>
+              <div class="mt-2">
+                <span
+                  class="badge me-1"
+                  :class="{
+                    'bg-success': c.amount_paid >= c.order_value,
+                    'bg-info': c.amount_paid > 0 && c.amount_paid < c.order_value,
+                    'bg-warning text-dark': c.amount_paid == 0 || c.amount_paid == null,
+                  }"
+                >
+                  {{
+                    c.amount_paid >= c.order_value
+                      ? 'Pago Totalmente'
+                      : c.amount_paid > 0
+                      ? 'Pago Parcialmente'
+                      : 'Não Pago'
+                  }}
+                </span>
+                <span
+                  class="badge"
+                  :class="c.delivered ? 'bg-info' : 'bg-secondary'"
+                >
+                  {{ c.delivered ? 'Entregue' : 'Não Entregue' }}
+                </span>
+              </div>
+            </div>
+            <div class="btn-group btn-group-sm">
+              <button
+                @click="startEdit(c)"
+                class="btn btn-outline-warning"
+                title="Editar"
+              >
+                <i class="bi bi-pencil"></i> </button>
+              <button
+                @click="remove(c.id)"
+                class="btn btn-outline-danger"
+                title="Excluir"
+              >
+                <i class="bi bi-trash"></i> </button>
+            </div>
+          </li>
+        </ul>
+
+        <nav v-if="pagination.lastPage > 1" class="mt-4">
+          <ul class="pagination justify-content-center">
+            <li class="page-item" :class="{ disabled: pagination.currentPage === 1 }">
+              <button class="page-link" @click="goToPage(pagination.currentPage - 1)">
+                Anterior
+              </button>
+            </li>
+            <li
+              v-for="page in pagination.lastPage"
+              :key="page"
+              class="page-item"
+              :class="{ active: page === pagination.currentPage }"
             >
-              <option :value="null">Todos</option>
-              <option value="fully_paid">Pago Totalmente</option>
-              <option value="partially_paid">Pago Parcialmente</option>
-              <option value="not_paid">Não Pago</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Status Entrega</label>
-            <select
-              v-model="filters.delivered"
-              @change="applyFilters"
-              class="form-select"
+              <button class="page-link" @click="goToPage(page)">
+                {{ page }}
+              </button>
+            </li>
+            <li
+              class="page-item"
+              :class="{ disabled: pagination.currentPage === pagination.lastPage }"
             >
-              <option :value="null">Todos</option>
-              <option value="1">Entregue</option>
-              <option value="0">Não Entregue</option>
-            </select>
-          </div>
-          <div class="col-12 mt-3">
-            <button @click="clearFilters" class="btn btn-outline-secondary btn-sm">
-              Limpar Filtros
-            </button>
+              <button class="page-link" @click="goToPage(pagination.currentPage + 1)">
+                Próximo
+              </button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card mb-4">
+          <div class="card-header">Filtros</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="search" class="form-label">Pesquisar</label>
+              <input
+                v-model="filters.search"
+                type="text"
+                class="form-control"
+                id="search"
+                placeholder="Nome, descrição ou cidade"
+              />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Status Pagamento</label>
+              <select
+                v-model="filters.payment_status"
+                class="form-select"
+              >
+                <option :value="null">Todos</option>
+                <option value="fully_paid">Pago Totalmente</option>
+                <option value="partially_paid">Pago Parcialmente</option>
+                <option value="not_paid">Não Pago</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Status Entrega</label>
+              <select
+                v-model="filters.delivered"
+                class="form-select"
+              >
+                <option :value="null">Todos</option>
+                <option value="1">Entregue</option>
+                <option value="0">Não Entregue</option>
+              </select>
+            </div>
+            <div class="d-grid gap-2">
+              <button @click="applyFilters" class="btn btn-info">
+                Pesquisar
+              </button>
+              <button @click="clearFilters" class="btn btn-outline-secondary">
+                Limpar Filtros
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <ul class="list-group">
-      <li
-        v-for="c in customers"
-        :key="c.id"
-        class="list-group-item d-flex justify-content-between align-items-start"
-      >
-        <div>
-          <div class="fw-bold">{{ c.name }}</div>
-          <div>{{ c.order_description }}</div>
-          <div class="mt-1">
-            Pedido: R$ {{ parseFloat(c.order_value).toFixed(2) }} —
-            Atacado: R$ {{ parseFloat(c.wholesale_value).toFixed(2) }}
-          </div>
-          <div class="mt-1">
-            Pago: R$ {{ parseFloat(c.amount_paid || 0).toFixed(2) }}
-            <span v-if="c.order_value - (c.amount_paid || 0) > 0" class="text-danger small">
-                (Falta R$ {{ (c.order_value - (c.amount_paid || 0)).toFixed(2) }})
-            </span>
-          </div>
-          <div v-if="c.order_date" class="small text-muted">
-            Pedido em: {{ formatDate(c.order_date) }}
-          </div>
-          <div v-if="c.city" class="small text-muted">
-            Cidade: {{ c.city }}
-          </div>
-          <div class="mt-2">
-            <span
-              class="badge me-1"
-              :class="{
-                'bg-success': c.amount_paid >= c.order_value,
-                'bg-info': c.amount_paid > 0 && c.amount_paid < c.order_value,
-                'bg-warning text-dark': c.amount_paid == 0 || c.amount_paid == null,
-              }"
-            >
-              {{
-                c.amount_paid >= c.order_value
-                  ? 'Pago Totalmente'
-                  : c.amount_paid > 0
-                  ? 'Pago Parcialmente'
-                  : 'Não Pago'
-              }}
-            </span>
-            <span
-              class="badge"
-              :class="c.delivered ? 'bg-info' : 'bg-secondary'"
-            >
-              {{ c.delivered ? 'Entregue' : 'Não Entregue' }}
-            </span>
-          </div>
-        </div>
-        <div class="btn-group btn-group-sm">
-          <button
-            @click="startEdit(c)"
-            class="btn btn-outline-warning"
-            title="Editar"
-          >
-            ✏️
-          </button>
-          <button
-            @click="remove(c.id)"
-            class="btn btn-outline-danger"
-            title="Excluir"
-          >
-            🗑️
-          </button>
-        </div>
-      </li>
-    </ul>
-
-    <nav v-if="pagination.lastPage > 1" class="mt-4">
-      <ul class="pagination justify-content-center">
-        <li class="page-item" :class="{ disabled: pagination.currentPage === 1 }">
-          <button class="page-link" @click="goToPage(pagination.currentPage - 1)">
-            Anterior
-          </button>
-        </li>
-        <li
-          v-for="page in pagination.lastPage"
-          :key="page"
-          class="page-item"
-          :class="{ active: page === pagination.currentPage }"
-        >
-          <button class="page-link" @click="goToPage(page)">
-            {{ page }}
-          </button>
-        </li>
-        <li
-          class="page-item"
-          :class="{ disabled: pagination.currentPage === pagination.lastPage }"
-        >
-          <button class="page-link" @click="goToPage(pagination.currentPage + 1)">
-            Próximo
-          </button>
-        </li>
-      </ul>
-    </nav>
-
-    <div class="mt-4">
-      <a href="/" class="btn btn-outline-primary">&larr; Dashboard</a>
     </div>
 
     <div
@@ -302,10 +301,9 @@ const form = ref({
   order_description: '',
   order_value: '',
   wholesale_value: '',
-  amount_paid: '', // NOVO: Propriedade 'amount_paid'
+  amount_paid: '',
   order_date: '',
   city: '',
-  // paid: false, // REMOVIDO
   delivered: false,
 });
 const isEditing = ref(false);
@@ -320,7 +318,7 @@ const pagination = ref({
 
 const filters = ref({
   search: '',
-  payment_status: null, // NOVO: Mudei de 'paid' para 'payment_status'
+  payment_status: null,
   delivered: null,
 });
 
@@ -347,7 +345,7 @@ function fetch(page = 1) {
   const params = {
     page: page,
     search: filters.value.search,
-    payment_status: filters.value.payment_status, // NOVO: Usando payment_status
+    payment_status: filters.value.payment_status,
     delivered: filters.value.delivered,
   };
 
@@ -374,7 +372,7 @@ function applyFilters() {
 
 function clearFilters() {
   filters.value.search = '';
-  filters.value.payment_status = null; // Reinicia para null
+  filters.value.payment_status = null;
   filters.value.delivered = null;
   fetch(1);
 }
@@ -398,10 +396,9 @@ function resetForm() {
     order_description: '',
     order_value: '',
     wholesale_value: '',
-    amount_paid: '', // Reinicia amount_paid
+    amount_paid: '',
     order_date: '',
     city: '',
-    // paid: false, // REMOVIDO
     delivered: false,
   };
 }
@@ -411,7 +408,7 @@ function add() {
     ...form.value,
     order_value: parseFloat(form.value.order_value) || 0,
     wholesale_value: parseFloat(form.value.wholesale_value) || 0,
-    amount_paid: parseFloat(form.value.amount_paid) || 0, // Garante que é número, default 0
+    amount_paid: parseFloat(form.value.amount_paid) || 0,
   };
   axios
     .post('/api/customers', payload)
@@ -431,10 +428,9 @@ function startEdit(c) {
     order_description: c.order_description,
     order_value: String(c.order_value),
     wholesale_value: String(c.wholesale_value),
-    amount_paid: String(c.amount_paid || 0), // Preenche amount_paid
+    amount_paid: String(c.amount_paid || 0),
     order_date: c.order_date || '',
     city: c.city || '',
-    // paid: Boolean(c.paid), // REMOVIDO
     delivered: Boolean(c.delivered),
   };
   openFormModal(true);
@@ -452,7 +448,7 @@ function update() {
     ...form.value,
     order_value: parseFloat(form.value.order_value) || 0,
     wholesale_value: parseFloat(form.value.wholesale_value) || 0,
-    amount_paid: parseFloat(form.value.amount_paid) || 0, // Garante que é número, default 0
+    amount_paid: parseFloat(form.value.amount_paid) || 0,
   };
   axios
     .put(`/api/customers/${editId.value}`, payload)
@@ -479,3 +475,60 @@ onMounted(() => {
   clientFormModal = new Modal(document.getElementById('clientFormModal'));
 });
 </script>
+
+<style scoped>
+/* Seus estilos existentes */
+.list-group-item {
+  background-color: var(--bs-body-bg);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+  margin-bottom: 10px;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+.list-group-item .fw-bold {
+  color: var(--bs-heading-color);
+}
+.list-group-item .text-muted {
+  color: var(--bs-secondary-color) !important;
+}
+
+/* Ajuste de margem para o botão "Adicionar Novo Cliente" caso necessário */
+.btn-primary.mb-4 {
+  margin-bottom: 1.5rem !important;
+}
+
+/* Estilos para os botões de ação (editar/excluir) para combinar com Estoque */
+.btn-group-sm .btn {
+  padding: .25rem .5rem; /* Ajuste o padding para botões pequenos */
+  font-size: .875rem; /* Ajuste o tamanho da fonte */
+  line-height: 1.5;
+  border-radius: .2rem;
+}
+
+.btn-outline-warning {
+  --bs-btn-color: var(--bs-warning);
+  --bs-btn-border-color: var(--bs-warning);
+  --bs-btn-hover-color: var(--bs-black); /* Para modo escuro, o texto pode precisar ser preto no hover */
+  --bs-btn-hover-bg: var(--bs-warning);
+  --bs-btn-hover-border-color: var(--bs-warning);
+  --bs-btn-active-color: var(--bs-black);
+  --bs-btn-active-bg: var(--bs-warning);
+  --bs-btn-active-border-color: var(--bs-warning);
+  --bs-btn-disabled-color: var(--bs-warning);
+  --bs-btn-disabled-border-color: var(--bs-warning);
+}
+
+.btn-outline-danger {
+  --bs-btn-color: var(--bs-danger);
+  --bs-btn-border-color: var(--bs-danger);
+  --bs-btn-hover-color: var(--bs-white);
+  --bs-btn-hover-bg: var(--bs-danger);
+  --bs-btn-hover-border-color: var(--bs-danger);
+  --bs-btn-active-color: var(--bs-white);
+  --bs-btn-active-bg: var(--bs-danger);
+  --bs-btn-active-border-color: var(--bs-danger);
+  --bs-btn-disabled-color: var(--bs-danger);
+  --bs-btn-disabled-border-color: var(--bs-danger);
+}
+</style>

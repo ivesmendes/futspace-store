@@ -1,27 +1,48 @@
-// resources/js/app.js
+import './bootstrap'; // Seus scripts de bootstrap (ex: axios configs)
+import { createApp } from 'vue';
+import { createRouter, createWebHistory } from 'vue-router'; // Importar do vue-router
 
-import './bootstrap'; // Importa o arquivo bootstrap.js (provavelmente contém o JS do Bootstrap)
+// Importar os componentes de página
+import Dashboard from './components/Dashboard.vue';
+import Clients from './components/Clients.vue';
+import Stock from './components/Stock.vue'; // O novo componente de estoque
+import Sidebar from './components/Sidebar.vue'; // O novo componente da sidebar
 
-// --- Importa o CSS do Bootstrap via npm (melhor prática com Vite) ---
-import 'bootstrap/dist/css/bootstrap.min.css';
-// ---
+import { toggleTheme } from './theme'; // Importar a função de alternar tema
 
-// Se você tiver algum CSS customizado em app.css que não seja Tailwind, mantenha esta linha:
-// import '../css/app.css'; // Comentado se app.css estiver vazio ou você não tiver customizações
+// Definir as rotas do seu aplicativo Vue
+const routes = [
+    { path: '/', component: Dashboard },
+    { path: '/clients', component: Clients },
+    { path: '/stock', component: Stock }, // Nova rota para estoque
+];
 
-import { createApp } from 'vue'
-import Dashboard from './components/Dashboard.vue'
-import Clients from './components/Clients.vue'
-// import { toggleTheme } from './theme' // REMOVIDO: A lógica do tema agora está no ThemeToggle.vue
+// Criar o roteador
+const router = createRouter({
+    history: createWebHistory(), // Usa o modo de histórico para URLs limpas (sem #)
+    routes,
+});
 
-// Monta o componente Vue baseado na URL
-const url = window.location.pathname
-if (url.startsWith('/clients')) {
-  createApp(Clients).mount('#app')
-} else {
-  createApp(Dashboard).mount('#app')
-}
+// Criar o componente principal que contém o layout com sidebar
+const AppLayout = {
+    components: {
+        Sidebar,
+        // Dashboard, Clients, Stock não precisam ser registrados aqui se são renderizados pelo router-view
+        // O router-view automaticamente injeta o componente correto
+    },
+    template: `
+        <div class="d-flex" style="min-height: 100vh;">
+            <Sidebar />
+            <main class="flex-grow-1 p-4">
+                <router-view /> </main>
+        </div>
+    `
+};
 
-// REMOVIDO: Não precisamos expor window.toggleTheme globalmente,
-// a lógica está contida no componente ThemeToggle.vue
-// window.toggleTheme = toggleTheme
+// Criar e montar a aplicação Vue
+const app = createApp(AppLayout); // Monta o AppLayout como componente principal
+app.use(router); // Usar o roteador na aplicação
+app.mount('#app'); // Montar no elemento com id="app" no seu Blade
+
+// Disponibiliza a função de alternar tema globalmente (mantido)
+window.toggleTheme = toggleTheme;
