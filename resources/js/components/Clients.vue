@@ -8,6 +8,53 @@
       Adicionar Novo Cliente
     </button>
 
+    <div class="card mb-4">
+      <div class="card-header">Filtros</div>
+      <div class="card-body">
+        <div class="row gy-3">
+          <div class="col-md-6">
+            <label for="search" class="form-label">Pesquisar</label>
+            <input
+              v-model.lazy="filters.search"
+              @change="applyFilters"
+              type="text"
+              class="form-control"
+              id="search"
+              placeholder="Nome, descrição ou cidade"
+            />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Status Pagamento</label>
+            <select
+              v-model="filters.paid"
+              @change="applyFilters"
+              class="form-select"
+            >
+              <option :value="null">Todos</option>
+              <option value="1">Pago</option>
+              <option value="0">Não Pago</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Status Entrega</label>
+            <select
+              v-model="filters.delivered"
+              @change="applyFilters"
+              class="form-select"
+            >
+              <option :value="null">Todos</option>
+              <option value="1">Entregue</option>
+              <option value="0">Não Entregue</option>
+            </select>
+          </div>
+          <div class="col-12 mt-3">
+            <button @click="clearFilters" class="btn btn-outline-secondary btn-sm">
+              Limpar Filtros
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     <ul class="list-group">
       <li
         v-for="c in customers"
@@ -61,6 +108,33 @@
       </li>
     </ul>
 
+    <nav v-if="pagination.lastPage > 1" class="mt-4">
+      <ul class="pagination justify-content-center">
+        <li class="page-item" :class="{ disabled: pagination.currentPage === 1 }">
+          <button class="page-link" @click="goToPage(pagination.currentPage - 1)">
+            Anterior
+          </button>
+        </li>
+        <li
+          v-for="page in pagination.lastPage"
+          :key="page"
+          class="page-item"
+          :class="{ active: page === pagination.currentPage }"
+        >
+          <button class="page-link" @click="goToPage(page)">
+            {{ page }}
+          </button>
+        </li>
+        <li
+          class="page-item"
+          :class="{ disabled: pagination.currentPage === pagination.lastPage }"
+        >
+          <button class="page-link" @click="goToPage(pagination.currentPage + 1)">
+            Próximo
+          </button>
+        </li>
+      </ul>
+    </nav>
     <div class="mt-4">
       <a href="/" class="btn btn-outline-primary">&larr; Dashboard</a>
     </div>
@@ -209,13 +283,26 @@ const form = ref({
   order_value: '',
   wholesale_value: '',
   order_date: '',
-  city: '', // NOVO: Propriedade 'city' adicionada ao formulário
+  city: '',
   paid: false,
   delivered: false,
 });
 const isEditing = ref(false);
 const editId = ref(null);
 let clientFormModal = null;
+
+const pagination = ref({
+  currentPage: 1,
+  lastPage: 1,
+  total: 0,
+});
+
+// NOVO: Estado para os filtros
+const filters = ref({
+  search: '',
+  paid: null, // null para 'Todos', '1' para 'Pago', '0' para 'Não Pago'
+  delivered: null, // null para 'Todos', '1' para 'Entregue', '0' para 'Não Entregue'
+});
 
 function formatDate(dateString) {
   if (!dateString) return '';
@@ -236,11 +323,50 @@ function closeFormModal() {
   clientFormModal.hide();
 }
 
-function fetch() {
+// Modificada a função fetch para incluir os parâmetros de filtro
+function fetch(page = 1) {
+  const params = {
+    page: page,
+    search: filters.value.search,
+    paid: filters.value.paid,
+    delivered: filters.value.delivered,
+  };
+
+  // Remove parâmetros vazios para não poluir a URL ou a requisição desnecessariamente
+  Object.keys(params).forEach(key => {
+    if (params[key] === '' || params[key] === null) {
+      delete params[key];
+    }
+  });
+
   axios
-    .get('/api/customers')
-    .then((r) => (customers.value = r.data))
+    .get('/api/customers', { params: params }) // Envia os filtros como query parameters
+    .then((r) => {
+      customers.value = r.data.data;
+      pagination.value.currentPage = r.data.current_page;
+      pagination.value.lastPage = r.data.last_page;
+      pagination.value.total = r.data.total;
+    })
     .catch(console.error);
+}
+
+// NOVO: Função para aplicar os filtros (reinicia a paginação para a primeira página)
+function applyFilters() {
+  fetch(1);
+}
+
+// NOVO: Função para limpar os filtros
+function clearFilters() {
+  filters.value.search = '';
+  filters.value.paid = null;
+  filters.value.delivered = null;
+  fetch(1); // Re-busca os dados com filtros limpos
+}
+
+function goToPage(page) {
+  if (page >= 1 && page <= pagination.value.lastPage) {
+    fetch(page);
+  }
 }
 
 function sanitizeNumber(field) {
@@ -257,7 +383,7 @@ function resetForm() {
     order_value: '',
     wholesale_value: '',
     order_date: '',
-    city: '', // NOVO: Redefinir 'city'
+    city: '',
     paid: false,
     delivered: false,
   };
@@ -272,7 +398,7 @@ function add() {
   axios
     .post('/api/customers', payload)
     .then(() => {
-      fetch();
+      fetch(1);
       closeFormModal();
       resetForm();
     })
@@ -288,7 +414,7 @@ function startEdit(c) {
     order_value: String(c.order_value),
     wholesale_value: String(c.wholesale_value),
     order_date: c.order_date || '',
-    city: c.city || '', // NOVO: Preencher 'city' ao editar
+    city: c.city || '',
     paid: Boolean(c.paid),
     delivered: Boolean(c.delivered),
   };
@@ -311,7 +437,7 @@ function update() {
   axios
     .put(`/api/customers/${editId.value}`, payload)
     .then(() => {
-      fetch();
+      fetch(pagination.value.currentPage);
       closeFormModal();
       resetForm();
       isEditing.value = false;
@@ -324,12 +450,12 @@ function remove(id) {
   if (!confirm('Deseja excluir este cliente?')) return;
   axios
     .delete(`/api/customers/${id}`)
-    .then(() => fetch())
+    .then(() => fetch(pagination.value.currentPage))
     .catch(console.error);
 }
 
 onMounted(() => {
-  fetch();
+  fetch(); // Carrega a primeira página com os filtros iniciais (vazios)
   clientFormModal = new Modal(document.getElementById('clientFormModal'));
 });
 </script>

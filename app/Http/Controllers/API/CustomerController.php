@@ -11,10 +11,40 @@ class CustomerController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Ordena os clientes por data de criação de forma decrescente
-        return Customer::orderBy('order_date', 'desc')->get();
+        // Começa a construir a consulta
+        $query = Customer::orderBy('order_date', 'desc');
+
+        // Se o parâmetro 'all' estiver presente, retorne todos os clientes sem paginação
+        if ($request->has('all')) {
+            return response()->json($query->get()); // Retorna todos os clientes
+        }
+
+        // FILTROS DE PESQUISA (texto) - (mantido do ajuste anterior)
+        if ($request->has('search')) {
+            $searchTerm = $request->input('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('name', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('order_description', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('city', 'like', '%' . $searchTerm . '%');
+            });
+        }
+
+        // FILTROS DE STATUS (checkboxes) - (mantido do ajuste anterior)
+        if ($request->has('paid') && $request->input('paid') !== null) {
+            $query->where('paid', (bool) $request->input('paid'));
+        }
+
+        if ($request->has('delivered') && $request->input('delivered') !== null) {
+            $query->where('delivered', (bool) $request->input('delivered'));
+        }
+
+        // Pagina os resultados (apenas se 'all' não estiver presente)
+        $perPage = 4;
+        $customers = $query->paginate($perPage);
+
+        return response()->json($customers);
     }
 
     /**
