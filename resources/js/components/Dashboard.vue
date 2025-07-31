@@ -2,7 +2,7 @@
   <div class="container py-5">
     <ThemeToggle />
 
-    <h1 class="mb-4">Dashboard</h1>
+    <h1 class="mb-4">Dashboard FutSpace</h1>
 
     <div class="row mb-5">
       <div class="col-md-8 mx-auto">

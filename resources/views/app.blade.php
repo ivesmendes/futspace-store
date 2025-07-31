@@ -3,7 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Gerenciador de Clientes e Estoque</title>
+    <title>FutSpace Store</title>
+    <link rel="icon" href="{{ asset('camisa-de-futebol.png') }}">
+
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
