@@ -5,17 +5,37 @@
     <h1 class="mb-4">Dashboard FutSpace</h1>
 
     <div class="row mb-5">
-      <div class="col-md-8 mx-auto">
-        <div class="card shadow-sm">
-          <div class="card-header bg-dark text-white">Status de Faturamento (Potencial)</div>
-          <div class="card-body">
-            <Pie
-              :data="paymentStatusChartData"
-              :options="paymentStatusChartOptions"
-              v-if="chartDataLoaded"
-            />
-            <div v-else class="text-center py-5">Carregando gráfico...</div>
+      <div class="col-md-8">
+        <div class="card shadow-sm h-100"> <div class="card-header bg-dark text-white">Status de Faturamento (Potencial)</div>
+          <div class="card-body d-flex flex-column justify-content-center align-items-center">
+            <div style="height: 300px; width: 100%;">
+              <Pie
+                :data="paymentStatusChartData"
+                :options="paymentStatusChartOptions"
+                v-if="chartDataLoaded"
+              />
+              <div v-else class="text-center py-5">Carregando gráfico...</div>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card shadow-sm h-100"> <div class="card-header bg-dark text-white">Filtrar por Período</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="filterMonth" class="form-label">Mês</label>
+              <select v-model="selectedMonth" id="filterMonth" class="form-select form-select-sm"> <option value="">Todos</option>
+                  <option v-for="m in months" :key="m.value" :value="m.value">{{ m.name }}</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="filterYear" class="form-label">Ano</label>
+              <select v-model="selectedYear" id="filterYear" class="form-select form-select-sm"> <option value="">Todos</option>
+                  <option v-for="y in years" :key="y">{{ y }}</option>
+              </select>
+            </div>
+            <button @click="applyDateFilter" class="btn btn-primary btn-sm w-100">Aplicar Filtro</button> </div>
         </div>
       </div>
     </div>
@@ -110,7 +130,6 @@ import ThemeToggle from './ThemeToggle.vue';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'vue-chartjs';
 
-// Registrar os elementos necessários do Chart.js para o gráfico de pizza
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const customers = ref([]);
@@ -119,8 +138,26 @@ const chartDataLoaded = ref(false);
 const totalStockValue = ref(0.00);
 const loadingStockValue = ref(true);
 
-// NOVO: Estado para controlar a visibilidade dos detalhes
 const showDetails = ref(false);
+
+// Propriedades reativas para o filtro de data
+const selectedMonth = ref(new Date().getMonth() + 1); // Mês atual por padrão (1-12)
+const selectedYear = ref(new Date().getFullYear()); // Ano atual por padrão
+const months = [
+  { value: 1, name: 'Janeiro' },
+  { value: 2, name: 'Fevereiro' },
+  { value: 3, name: 'Março' },
+  { value: 4, name: 'Abril' },
+  { value: 5, name: 'Maio' },
+  { value: 6, name: 'Junho' },
+  { value: 7, name: 'Julho' },
+  { value: 8, name: 'Agosto' },
+  { value: 9, name: 'Setembro' },
+  { value: 10, name: 'Outubro' },
+  { value: 11, name: 'Novembro' },
+  { value: 12, name: 'Dezembro' },
+];
+const years = ref([]);
 
 // --- Funções Computadas para as Métricas Financeiras ---
 const totalRevenuePotential = computed(() => {
@@ -193,13 +230,33 @@ const paymentStatusChartOptions = {
     },
     legend: {
       position: 'bottom',
+      labels: {
+        color: 'white' // Cor da legenda para branco.
+      }
     }
   }
 };
 
-// --- Função de Carregamento de Dados dos Clientes ---
+// --- Função para gerar os anos ---
+const generateYears = () => {
+    const currentYear = new Date().getFullYear();
+    const startYear = currentYear - 5;
+    const endYear = currentYear + 1;
+    for (let i = startYear; i <= endYear; i++) {
+        years.value.push(i);
+    }
+    years.value.sort((a, b) => b - a);
+};
+
+// --- Função de Carregamento de Dados dos Clientes (AGORA COM FILTROS) ---
 const fetchAllCustomers = () => {
-  axios.get('/api/customers?all=1')
+  chartDataLoaded.value = false;
+  const params = {
+    month: selectedMonth.value === '' ? '' : selectedMonth.value,
+    year: selectedYear.value === '' ? '' : selectedYear.value,
+    all: 1 // Mantendo para garantir que o backend não pagine os resultados para o dashboard
+  };
+  axios.get('/api/customers', { params })
     .then(response => {
       customers.value = response.data.data || response.data;
       chartDataLoaded.value = true;
@@ -227,13 +284,19 @@ const fetchTotalStockValue = () => {
     });
 };
 
-// --- NOVO: Função para alternar a visibilidade dos detalhes ---
+// --- Função para aplicar o filtro de data ---
+const applyDateFilter = () => {
+  fetchAllCustomers();
+};
+
+// --- Função para alternar a visibilidade dos detalhes ---
 const toggleDetails = () => {
   showDetails.value = !showDetails.value;
 };
 
 // --- Ciclo de Vida do Componente ---
 onMounted(() => {
+  generateYears();
   fetchAllCustomers();
   fetchTotalStockValue();
 });
@@ -253,17 +316,19 @@ onMounted(() => {
   border-bottom: 1px solid rgba(0,0,0,.125);
 }
 
-/* Cores dos cards - mantidas */
-.bg-dark { background-color: #343a40 !important; }
-.bg-primary { background-color: #007bff !important; }
-.bg-info { background-color: #17a2b8 !important; }
-.bg-success { background-color: #28a745 !important; }
-.bg-warning { background-color: #ffc107 !important; }
-.bg-danger { background-color: #dc3545 !important; }
+/* Cores dos cards */
+.bg-dark { background-color: var(--bs-dark) !important; }
+.bg-primary { background-color: var(--bs-primary) !important; }
+.bg-info { background-color: var(--bs-info) !important; }
+.bg-success { background-color: var(--bs-success) !important; }
+.bg-warning { background-color: var(--bs-warning) !important; }
+.bg-danger { background-color: var(--bs-danger) !important; }
+.text-dark { color: var(--bs-dark-text-emphasis) !important; }
+.text-white { color: var(--bs-white) !important; }
 
 /* Novo estilo para a seção de detalhes (opcional, para transição suave) */
 .details-section {
-    background-color: var(--bs-body-bg); /* Adapta ao tema */
+    background-color: var(--bs-body-bg);
     border: 1px solid var(--bs-border-color);
 }
 .fade-enter-active, .fade-leave-active {
