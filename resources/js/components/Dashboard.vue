@@ -6,41 +6,65 @@
 
     <div class="row mb-5">
       <div class="col-md-8">
-        <div class="card shadow-sm h-100"> <div class="card-header bg-dark text-white">Status de Faturamento (Potencial)</div>
+        <div class="card shadow-sm h-100">
+          <div class="card-header bg-dark text-white">
+              <span v-if="selectedChartType === 'paymentStatus'">Status de Faturamento (Potencial)</span>
+              <span v-else>Divisão de Lucros por Dono</span>
+          </div>
           <div class="card-body d-flex flex-column justify-content-center align-items-center">
-            <div style="height: 300px; width: 100%;">
-              <Pie
-                :data="paymentStatusChartData"
-                :options="paymentStatusChartOptions"
-                v-if="chartDataLoaded"
-              />
-              <div v-else class="text-center py-5">Carregando gráfico...</div>
+            <div style="height: 300px; width: 100%;" v-if="selectedChartType === 'paymentStatus'">
+                <Pie
+                    :data="paymentStatusChartData"
+                    :options="paymentStatusChartOptions"
+                    v-if="chartDataLoaded"
+                />
+                <div v-else class="text-center py-5">Carregando gráfico...</div>
+            </div>
+
+            <div style="height: 300px; width: 100%;" v-else>
+                <Pie
+                    :data="ownerPaymentChartData"
+                    :options="ownerPaymentChartOptions"
+                    v-if="chartDataLoaded"
+                />
+                <div v-else class="text-center py-5">Carregando gráfico...</div>
             </div>
           </div>
         </div>
       </div>
 
       <div class="col-md-4">
-        <div class="card shadow-sm h-100"> <div class="card-header bg-dark text-white">Filtrar por Período</div>
+        <div class="card shadow-sm h-100">
+          <div class="card-header bg-dark text-white">Filtrar por Período</div>
           <div class="card-body">
             <div class="mb-3">
+              <label for="chartType" class="form-label">Tipo de Gráfico</label>
+              <select v-model="selectedChartType" id="chartType" class="form-select form-select-sm">
+                <option value="paymentStatus">Status de Faturamento</option>
+                <option value="ownerPayments">Divisão de Lucros</option>
+              </select>
+            </div>
+            <div class="mb-3">
               <label for="filterMonth" class="form-label">Mês</label>
-              <select v-model="selectedMonth" id="filterMonth" class="form-select form-select-sm"> <option value="">Todos</option>
+              <select v-model="selectedMonth" id="filterMonth" class="form-select form-select-sm">
+                  <option value="">Todos</option>
                   <option v-for="m in months" :key="m.value" :value="m.value">{{ m.name }}</option>
               </select>
             </div>
             <div class="mb-3">
               <label for="filterYear" class="form-label">Ano</label>
-              <select v-model="selectedYear" id="filterYear" class="form-select form-select-sm"> <option value="">Todos</option>
+              <select v-model="selectedYear" id="filterYear" class="form-select form-select-sm">
+                  <option value="">Todos</option>
                   <option v-for="y in years" :key="y">{{ y }}</option>
               </select>
             </div>
-            <button @click="applyDateFilter" class="btn btn-primary btn-sm w-100">Aplicar Filtro</button> </div>
+            <button @click="applyDateFilter" class="btn btn-primary btn-sm w-100">Aplicar Filtro</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="row text-center justify-content-center">
+    <div v-if="selectedChartType === 'paymentStatus'" class="row text-center justify-content-center">
       <div class="col-md-4 mb-3">
         <div class="card text-white bg-dark shadow-sm h-100">
           <div class="card-body">
@@ -98,6 +122,25 @@
         </div>
       </div>
     </div>
+    
+    <div v-else class="row text-center justify-content-center">
+        <div class="col-md-3 mb-3" v-for="(payment, owner) in ownerPayments" :key="owner">
+            <div class="card text-white bg-dark shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-capitalize">{{ owner }}</h5>
+                    <p class="card-text fs-3">R$ {{ parseFloat(payment).toFixed(2) }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Lucro Total do Período</h5>
+                    <p class="card-text fs-3">R$ {{ totalProfitPotential.toFixed(2) }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="d-flex justify-content-center mt-5 mb-4">
       <button class="btn btn-secondary btn-lg" @click="toggleDetails">
@@ -124,7 +167,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import ThemeToggle from './ThemeToggle.vue';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -140,9 +183,14 @@ const loadingStockValue = ref(true);
 
 const showDetails = ref(false);
 
-// Propriedades reativas para o filtro de data
-const selectedMonth = ref(new Date().getMonth() + 1); // Mês atual por padrão (1-12)
-const selectedYear = ref(new Date().getFullYear()); // Ano atual por padrão
+const selectedChartType = ref('paymentStatus'); // Estado reativo para o tipo de gráfico
+
+// --- CORREÇÃO AQUI ---
+// Propriedades reativas para o filtro de data (iniciando com '' para 'Todos')
+const selectedMonth = ref(''); // Mês padrão agora é 'Todos'
+const selectedYear = ref(''); // Ano padrão agora é 'Todos'
+// --------------------
+
 const months = [
   { value: 1, name: 'Janeiro' },
   { value: 2, name: 'Fevereiro' },
@@ -189,7 +237,18 @@ const totalOutstanding = computed(() => {
   }, 0);
 });
 
-// --- Dados e Opções para o Gráfico de Pizza ---
+// --- Nova Função Computada para a Divisão dos Pagamentos ---
+const ownerPayments = computed(() => {
+    const profit = totalProfitPotential.value;
+    return {
+        ives: profit * 0.70,
+        marcus: profit * 0.10,
+        alberto: profit * 0.10,
+        jannsen: profit * 0.10,
+    };
+});
+
+// --- Dados e Opções para o Gráfico de Status de Pagamento ---
 const paymentStatusChartData = computed(() => {
   const fullyPaid = customers.value.filter(c => parseFloat(c.amount_paid || 0) >= parseFloat(c.order_value || 0));
   const partiallyPaid = customers.value.filter(c => parseFloat(c.amount_paid || 0) > 0 && parseFloat(c.amount_paid || 0) < parseFloat(c.order_value || 0));
@@ -231,10 +290,55 @@ const paymentStatusChartOptions = {
     legend: {
       position: 'bottom',
       labels: {
-        color: 'white' // Cor da legenda para branco.
+        color: 'white'
       }
     }
   }
+};
+
+// --- Dados e Opções para o Gráfico de Pagamentos dos Donos ---
+const ownerPaymentChartData = computed(() => {
+    return {
+        labels: ['Ives (70%)', 'Marcus (10%)', 'Alberto (10%)', 'Jannsen (10%)'],
+        datasets: [
+            {
+                backgroundColor: ['#28a745', '#17a2b8', '#ffc107', '#dc3545'],
+                data: [
+                    ownerPayments.value.ives,
+                    ownerPayments.value.marcus,
+                    ownerPayments.value.alberto,
+                    ownerPayments.value.jannsen,
+                ]
+            }
+        ]
+    };
+});
+
+const ownerPaymentChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        tooltip: {
+            callbacks: {
+                label: function(context) {
+                    let label = context.label || '';
+                    if (label) {
+                        label += ': ';
+                    }
+                    if (context.parsed !== null) {
+                        label += 'R$ ' + context.parsed.toFixed(2);
+                    }
+                    return label;
+                }
+            }
+        },
+        legend: {
+            position: 'bottom',
+            labels: {
+                color: 'white'
+            }
+        }
+    }
 };
 
 // --- Função para gerar os anos ---
@@ -254,7 +358,7 @@ const fetchAllCustomers = () => {
   const params = {
     month: selectedMonth.value === '' ? '' : selectedMonth.value,
     year: selectedYear.value === '' ? '' : selectedYear.value,
-    all: 1 // Mantendo para garantir que o backend não pagine os resultados para o dashboard
+    all: 1
   };
   axios.get('/api/customers', { params })
     .then(response => {
@@ -300,6 +404,7 @@ onMounted(() => {
   fetchAllCustomers();
   fetchTotalStockValue();
 });
+
 </script>
 
 <style scoped>
