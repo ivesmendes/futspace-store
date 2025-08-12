@@ -17,6 +17,12 @@
           <i class="bi bi-box-seam me-2"></i> Estoque
         </router-link>
       </li>
+      <li class="nav-item mb-2">
+        <router-link to="/championship" class="nav-link text-white d-flex align-items-center">
+          <i class="bi bi-trophy me-2"></i>
+            ChampionShip
+        </router-link>
+      </li>
     </ul>
     <div class="mt-auto pt-3 border-top text-center">
         <ThemeToggle />

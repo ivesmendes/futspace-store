@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard.vue';
 import Clients from './components/Clients.vue';
 import Stock from './components/Stock.vue'; // O novo componente de estoque
 import Sidebar from './components/Sidebar.vue'; // O novo componente da sidebar
+import ChampionShip from './components/ChampionShip.vue';
 
 import { toggleTheme } from './theme'; // Importar a função de alternar tema
 
@@ -15,6 +16,7 @@ const routes = [
     { path: '/', component: Dashboard },
     { path: '/clients', component: Clients },
     { path: '/stock', component: Stock }, // Nova rota para estoque
+    { path: '/championship', component: ChampionShip },
 ];
 
 // Criar o roteador

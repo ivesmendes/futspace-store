@@ -90,7 +90,7 @@ class CustomerController extends Controller
         }
 
         // Pagina os resultados (apenas se não for uma requisição "all" ou de filtro de data completa)
-        $perPage = 4;
+        $perPage = 3;
         $customers = $query->paginate($perPage);
 
         return response()->json($customers);

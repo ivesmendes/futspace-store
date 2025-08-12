@@ -27,4 +27,6 @@ Route::get('/stock', function () {
     return view('app'); // Aponta para o seu novo layout principal
 });
 
-// Você pode adicionar mais rotas web se precisar de outras páginas no futuro
+Route::get('/championship', function () {
+    return view('app');
+});
