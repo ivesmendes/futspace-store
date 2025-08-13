@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\CustomerController;
 use App\Http\Controllers\API\StockItemController;
 use App\Http\Controllers\API\ChampionShipSaleController;
+use App\Http\Controllers\Api\ShirtCounterController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,7 +24,10 @@ Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);
 Route::get('stock-items', [StockItemController::class, 'index']);
 Route::post('stock-items', [StockItemController::class, 'store']);
 Route::delete('stock-items/{stockItem}', [StockItemController::class, 'destroy']);
-Route::get('stock-value', [StockItemController::class, 'getStockValue']); // <--- NOVA ROTA
+Route::get('stock-value', [StockItemController::class, 'getStockValue']); 
 
 Route::get('/championship-sales', [ChampionShipSaleController::class, 'index']);
 Route::post('/championship-sales', [ChampionShipSaleController::class, 'store']);
+
+Route::get('/shirt-counter', [ShirtCounterController::class, 'getCount']);
+Route::post('/shirt-counter', [ShirtCounterController::class, 'updateCount']);

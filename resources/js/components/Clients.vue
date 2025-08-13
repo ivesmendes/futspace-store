@@ -108,6 +108,26 @@
 
       <div class="col-md-4">
         <div class="card mb-4">
+          <div class="card-header">Contadores</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label d-block text-center">Clientes que já fizeram pedidos</label>
+              <div class="input-group">
+                <span class="form-control text-center bg-body-tertiary fs-5 fw-bold">{{ pagination.total }}</span>
+              </div>
+            </div>
+            <div>
+              <label class="form-label d-block text-center">Camisas já pedidas (manual)</label>
+              <div class="input-group">
+                <button class="btn btn-outline-secondary" @click="decrementShirtCount">-</button>
+                <span class="form-control text-center bg-body-tertiary fs-5">{{ shirtCount }}</span>
+                <button class="btn btn-outline-secondary" @click="incrementShirtCount">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card mb-4">
           <div class="card-header">Filtros</div>
           <div class="card-body">
             <div class="mb-3">
@@ -322,6 +342,29 @@ const filters = ref({
   delivered: null,
 });
 
+// Contador agora será atualizado pela API
+const shirtCount = ref(0);
+
+// Função para atualizar o contador no backend
+const updateShirtCountOnBackend = async (newCount) => {
+    try {
+        const response = await axios.post('/api/shirt-counter', { count: newCount });
+        shirtCount.value = response.data.count;
+    } catch (error) {
+        console.error('Erro ao atualizar o contador de camisas:', error);
+    }
+};
+
+const incrementShirtCount = () => {
+    updateShirtCountOnBackend(shirtCount.value + 1);
+};
+
+const decrementShirtCount = () => {
+    if (shirtCount.value > 0) {
+        updateShirtCountOnBackend(shirtCount.value - 1);
+    }
+};
+
 function formatDate(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString + 'T00:00:00');
@@ -471,8 +514,17 @@ function remove(id) {
 }
 
 onMounted(() => {
-  fetch();
+  fetch(); // Carrega os clientes
   clientFormModal = new Modal(document.getElementById('clientFormModal'));
+
+  // NOVO CÓDIGO: Carrega o contador do backend ao iniciar
+  axios.get('/api/shirt-counter')
+      .then(response => {
+          shirtCount.value = response.data.count;
+      })
+      .catch(error => {
+          console.error('Erro ao carregar o contador de camisas:', error);
+      });
 });
 </script>
 
