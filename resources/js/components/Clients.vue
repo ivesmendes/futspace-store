@@ -117,7 +117,7 @@
               </div>
             </div>
             <div>
-              <label class="form-label d-block text-center">Camisas já pedidas (manual)</label>
+              <label class="form-label d-block text-center">Total de camisas pedidas (manual)</label>
               <div class="input-group">
                 <button class="btn btn-outline-secondary" @click="decrementShirtCount">-</button>
                 <span class="form-control text-center bg-body-tertiary fs-5">{{ shirtCount }}</span>
