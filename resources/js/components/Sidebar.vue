@@ -18,6 +18,11 @@
         </router-link>
       </li>
       <li class="nav-item mb-2">
+        <router-link to="/losses" class="nav-link text-white d-flex align-items-center">
+          <i class="bi bi-emoji-frown me-2"></i> Prejuízos
+        </router-link>
+      </li>
+      <li class="nav-item mb-2">
         <router-link to="/championship" class="nav-link text-white d-flex align-items-center">
           <i class="bi bi-trophy me-2"></i>
             ChampionShip

@@ -30,3 +30,5 @@ Route::get('/stock', function () {
 Route::get('/championship', function () {
     return view('app');
 });
+
+Route::get('/losses', fn() => view('app'));

@@ -5,6 +5,7 @@ use App\Http\Controllers\API\CustomerController;
 use App\Http\Controllers\API\StockItemController;
 use App\Http\Controllers\API\ChampionShipSaleController;
 use App\Http\Controllers\Api\ShirtCounterController;
+use App\Http\Controllers\API\LossController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,3 +32,10 @@ Route::post('/championship-sales', [ChampionShipSaleController::class, 'store'])
 
 Route::get('/shirt-counter', [ShirtCounterController::class, 'getCount']);
 Route::post('/shirt-counter', [ShirtCounterController::class, 'updateCount']);
+
+Route::get('losses',        [LossController::class, 'index']);
+Route::post('losses',       [LossController::class, 'store']);
+Route::put('losses/{loss}', [LossController::class, 'update']);
+Route::delete('losses/{loss}', [LossController::class, 'destroy']);
+
+Route::get('losses-total', [LossController::class, 'total']); // soma para o dashboard

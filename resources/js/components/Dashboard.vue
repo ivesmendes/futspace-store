@@ -95,11 +95,12 @@
         </div>
       </div>
 
+      <!-- Mantemos o nome "Lucro (Potencial)" mas o valor já vem com prejuízos abatidos -->
       <div class="col-md-4 mb-3">
         <div class="card bg-success text-white shadow-sm">
           <div class="card-body">
             <h5 class="card-title">Lucro (Potencial)</h5>
-            <p class="card-text fs-3">R$ {{ totalProfitPotential.toFixed(2) }}</p>
+            <p class="card-text fs-3">R$ {{ totalProfitAfterLosses.toFixed(2) }}</p>
           </div>
         </div>
       </div>
@@ -121,6 +122,16 @@
           </div>
         </div>
       </div>
+
+      <!-- Card mostrando o valor real dos prejuízos do período -->
+      <div class="col-md-4 mb-3">
+        <div class="card bg-secondary text-white shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Prejuízos</h5>
+            <p class="card-text fs-3">R$ {{ totalLosses.toFixed(2) }}</p>
+          </div>
+        </div>
+      </div>
     </div>
     
     <div v-else class="row text-center justify-content-center">
@@ -136,7 +147,7 @@
             <div class="card bg-success text-white shadow-sm">
                 <div class="card-body">
                     <h5 class="card-title">Lucro Total do Período</h5>
-                    <p class="card-text fs-3">R$ {{ totalProfitPotential.toFixed(2) }}</p>
+                    <p class="card-text fs-3">R$ {{ totalProfitAfterLosses.toFixed(2) }}</p>
                 </div>
             </div>
         </div>
@@ -154,12 +165,13 @@
           <h5 class="mb-0">Como as Métricas São Calculadas</h5>
         </div>
         <div class="card-body">
-          <p><strong>Valor de Estoque Atual:</strong> A soma do "Valor Atacado" de todos os itens atualmente registrados no seu estoque. Esta métrica reflete o valor dos bens que você possui, *mas que ainda não foram vendidos ou vinculados a um pedido de cliente*, portanto, não se mistura com as métricas de faturamento e lucro de vendas.</p>
-          <p><strong>Faturamento (Potencial):</strong> A soma total do "Valor do Pedido" de *todos* os pedidos de clientes, independentemente de estarem pagos ou não. Representa o faturamento máximo que você pode obter se todos os pedidos forem totalmente pagos.</p>
+          <p><strong>Valor de Estoque Atual:</strong> A soma do "Valor Atacado" de todos os itens atualmente registrados no seu estoque. Esta métrica reflete o valor dos bens que você possui, <em>mas que ainda não foram vendidos ou vinculados a um pedido de cliente</em>, portanto, não se mistura com as métricas de faturamento e lucro de vendas.</p>
+          <p><strong>Faturamento (Potencial):</strong> A soma total do "Valor do Pedido" de <em>todos</em> os pedidos de clientes, independentemente de estarem pagos ou não. Representa o faturamento máximo que você pode obter se todos os pedidos forem totalmente pagos.</p>
           <p><strong>Custo Total:</strong> A soma do "Valor Atacado" de todos os pedidos de clientes. Isso representa o custo total dos produtos que foram encomendados pelos seus clientes.</p>
-          <p><strong>Lucro (Potencial):</strong> O resultado da subtração do "Custo Total" do "Faturamento (Potencial)". Representa o lucro máximo que você pode obter se todos os pedidos forem pagos em seu valor total.</p>
-          <p><strong>Receita Recebida:</strong> A soma de todos os valores que foram *efetivamente pagos* pelos seus clientes até o momento. Isso inclui pagamentos totais e parciais.</p>
+          <p><strong>Lucro (Potencial):</strong> Calculado como <code>Faturamento (Potencial) - Custo Total</code> e, na exibição, subtraímos os <strong>Prejuízos</strong> do período para refletir o valor líquido.</p>
+          <p><strong>Receita Recebida:</strong> A soma de todos os valores que foram <em>efetivamente pagos</em> pelos seus clientes até o momento. Isso inclui pagamentos totais e parciais.</p>
           <p><strong>Contas a Receber:</strong> A soma dos valores restantes a serem pagos pelos clientes. É o "Faturamento (Potencial)" menos a "Receita Recebida". Representa o montante que ainda está pendente de recebimento.</p>
+          <p><strong>Prejuízos:</strong> Soma dos valores cadastrados em <em>Prejuízos</em> para o período filtrado; esse total é abatido do Lucro (Potencial) exibido e da divisão entre os donos.</p>
         </div>
       </div>
     </transition>
@@ -167,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 import ThemeToggle from './ThemeToggle.vue';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -183,13 +195,11 @@ const loadingStockValue = ref(true);
 
 const showDetails = ref(false);
 
-const selectedChartType = ref('paymentStatus'); // Estado reativo para o tipo de gráfico
+const selectedChartType = ref('paymentStatus');
 
-// --- CORREÇÃO AQUI ---
-// Propriedades reativas para o filtro de data (iniciando com '' para 'Todos')
-const selectedMonth = ref(''); // Mês padrão agora é 'Todos'
-const selectedYear = ref(''); // Ano padrão agora é 'Todos'
-// --------------------
+// Filtros de período
+const selectedMonth = ref('');
+const selectedYear = ref('');
 
 const months = [
   { value: 1, name: 'Janeiro' },
@@ -207,7 +217,7 @@ const months = [
 ];
 const years = ref([]);
 
-// --- Funções Computadas para as Métricas Financeiras ---
+// --- Métricas Financeiras (Clientes) ---
 const totalRevenuePotential = computed(() => {
   return customers.value.reduce((sum, customer) => {
     return sum + parseFloat(customer.order_value || 0);
@@ -220,9 +230,21 @@ const totalCost = computed(() => {
   }, 0);
 });
 
-const totalProfitPotential = computed(() => {
+// Lucro potencial (antes de prejuízos)
+const rawProfitPotential = computed(() => {
   return totalRevenuePotential.value - totalCost.value;
 });
+
+// Total de prejuízos do período
+const totalLosses = ref(0.00);
+
+// Lucro (Potencial) exibido = lucro potencial - prejuízos
+const totalProfitAfterLosses = computed(() => {
+  return rawProfitPotential.value - totalLosses.value;
+});
+
+// Mantemos o nome da prop original usada na UI
+const totalProfitPotential = computed(() => totalProfitAfterLosses.value);
 
 const totalAmountReceived = computed(() => {
   return customers.value.reduce((sum, customer) => {
@@ -237,9 +259,9 @@ const totalOutstanding = computed(() => {
   }, 0);
 });
 
-// --- Nova Função Computada para a Divisão dos Pagamentos ---
+// Divisão de lucros entre donos (com prejuízos já abatidos)
 const ownerPayments = computed(() => {
-    const profit = totalProfitPotential.value;
+    const profit = totalProfitAfterLosses.value;
     return {
         ives: profit * 0.70,
         marcus: profit * 0.10,
@@ -248,7 +270,7 @@ const ownerPayments = computed(() => {
     };
 });
 
-// --- Dados e Opções para o Gráfico de Status de Pagamento ---
+// --- Gráfico: Status de Pagamento ---
 const paymentStatusChartData = computed(() => {
   const fullyPaid = customers.value.filter(c => parseFloat(c.amount_paid || 0) >= parseFloat(c.order_value || 0));
   const partiallyPaid = customers.value.filter(c => parseFloat(c.amount_paid || 0) > 0 && parseFloat(c.amount_paid || 0) < parseFloat(c.order_value || 0));
@@ -296,7 +318,7 @@ const paymentStatusChartOptions = {
   }
 };
 
-// --- Dados e Opções para o Gráfico de Pagamentos dos Donos ---
+// --- Gráfico: Divisão entre Donos (usando lucro após prejuízos) ---
 const ownerPaymentChartData = computed(() => {
     return {
         labels: ['Ives (70%)', 'Marcus (10%)', 'Alberto (10%)', 'Jannsen (10%)'],
@@ -341,7 +363,7 @@ const ownerPaymentChartOptions = {
     }
 };
 
-// --- Função para gerar os anos ---
+// --- Anos para filtro ---
 const generateYears = () => {
     const currentYear = new Date().getFullYear();
     const startYear = currentYear - 5;
@@ -352,7 +374,7 @@ const generateYears = () => {
     years.value.sort((a, b) => b - a);
 };
 
-// --- Função de Carregamento de Dados dos Clientes (AGORA COM FILTROS) ---
+// --- Carregar clientes (com filtros) ---
 const fetchAllCustomers = () => {
   chartDataLoaded.value = false;
   const params = {
@@ -372,7 +394,7 @@ const fetchAllCustomers = () => {
     });
 };
 
-// --- Carregamento do Valor Total do Estoque ---
+// --- Carregar valor de estoque ---
 const fetchTotalStockValue = () => {
   loadingStockValue.value = true;
   axios.get('/api/stock-value')
@@ -388,23 +410,36 @@ const fetchTotalStockValue = () => {
     });
 };
 
-// --- Função para aplicar o filtro de data ---
-const applyDateFilter = () => {
-  fetchAllCustomers();
+// --- Carregar total de prejuízos (com filtros) ---
+const fetchTotalLosses = () => {
+  const params = {
+    month: selectedMonth.value === '' ? '' : selectedMonth.value,
+    year: selectedYear.value === '' ? '' : selectedYear.value,
+  };
+  axios.get('/api/losses-total', { params })
+    .then(res => totalLosses.value = parseFloat(res.data.total_losses || 0))
+    .catch(() => totalLosses.value = 0);
 };
 
-// --- Função para alternar a visibilidade dos detalhes ---
+// --- Aplicar filtros ---
+const applyDateFilter = () => {
+  fetchAllCustomers();
+  fetchTotalStockValue();
+  fetchTotalLosses();
+};
+
+// --- Toggle seção de detalhes ---
 const toggleDetails = () => {
   showDetails.value = !showDetails.value;
 };
 
-// --- Ciclo de Vida do Componente ---
+// --- Montagem ---
 onMounted(() => {
   generateYears();
   fetchAllCustomers();
   fetchTotalStockValue();
+  fetchTotalLosses();
 });
-
 </script>
 
 <style scoped>
@@ -428,6 +463,7 @@ onMounted(() => {
 .bg-success { background-color: var(--bs-success) !important; }
 .bg-warning { background-color: var(--bs-warning) !important; }
 .bg-danger { background-color: var(--bs-danger) !important; }
+.bg-secondary { background-color: var(--bs-secondary) !important; }
 .text-dark { color: var(--bs-dark-text-emphasis) !important; }
 .text-white { color: var(--bs-white) !important; }
 
