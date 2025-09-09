@@ -26,7 +26,7 @@
               <div class="mt-1">
                 Pago: R$ {{ parseFloat(c.amount_paid || 0).toFixed(2) }}
                 <span v-if="c.order_value - (c.amount_paid || 0) > 0" class="text-danger small">
-                    (Falta R$ {{ (c.order_value - (c.amount_paid || 0)).toFixed(2) }})
+                  (Falta R$ {{ (c.order_value - (c.amount_paid || 0)).toFixed(2) }})
                 </span>
               </div>
               <div v-if="c.order_date" class="small text-muted">
@@ -66,34 +66,44 @@
                 class="btn btn-outline-warning"
                 title="Editar"
               >
-                <i class="bi bi-pencil"></i> </button>
+                <i class="bi bi-pencil"></i>
+              </button>
               <button
                 @click="remove(c.id)"
                 class="btn btn-outline-danger"
                 title="Excluir"
               >
-                <i class="bi bi-trash"></i> </button>
+                <i class="bi bi-trash"></i>
+              </button>
             </div>
           </li>
         </ul>
 
+        <!-- Paginação compacta -->
         <nav v-if="pagination.lastPage > 1" class="mt-4">
-          <ul class="pagination justify-content-center">
+          <ul class="pagination pagination-sm justify-content-center">
             <li class="page-item" :class="{ disabled: pagination.currentPage === 1 }">
               <button class="page-link" @click="goToPage(pagination.currentPage - 1)">
                 Anterior
               </button>
             </li>
+
             <li
-              v-for="page in pagination.lastPage"
-              :key="page"
+              v-for="(p, idx) in compactPages"
+              :key="idx + '-' + p"
               class="page-item"
-              :class="{ active: page === pagination.currentPage }"
+              :class="{ active: p === pagination.currentPage, disabled: p === '…' }"
             >
-              <button class="page-link" @click="goToPage(page)">
-                {{ page }}
+              <button
+                v-if="p !== '…'"
+                class="page-link"
+                @click="goToPage(p)"
+              >
+                {{ p }}
               </button>
+              <span v-else class="page-link">…</span>
             </li>
+
             <li
               class="page-item"
               :class="{ disabled: pagination.currentPage === pagination.lastPage }"
@@ -126,7 +136,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="card mb-4">
           <div class="card-header">Filtros</div>
           <div class="card-body">
@@ -310,7 +320,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import ThemeToggle from './ThemeToggle.vue';
 import { Modal } from 'bootstrap';
@@ -347,22 +357,17 @@ const shirtCount = ref(0);
 
 // Função para atualizar o contador no backend
 const updateShirtCountOnBackend = async (newCount) => {
-    try {
-        const response = await axios.post('/api/shirt-counter', { count: newCount });
-        shirtCount.value = response.data.count;
-    } catch (error) {
-        console.error('Erro ao atualizar o contador de camisas:', error);
-    }
+  try {
+    const response = await axios.post('/api/shirt-counter', { count: newCount });
+    shirtCount.value = response.data.count;
+  } catch (error) {
+    console.error('Erro ao atualizar o contador de camisas:', error);
+  }
 };
 
-const incrementShirtCount = () => {
-    updateShirtCountOnBackend(shirtCount.value + 1);
-};
-
+const incrementShirtCount = () => updateShirtCountOnBackend(shirtCount.value + 1);
 const decrementShirtCount = () => {
-    if (shirtCount.value > 0) {
-        updateShirtCountOnBackend(shirtCount.value - 1);
-    }
+  if (shirtCount.value > 0) updateShirtCountOnBackend(shirtCount.value - 1);
 };
 
 function formatDate(dateString) {
@@ -386,20 +391,20 @@ function closeFormModal() {
 
 function fetch(page = 1) {
   const params = {
-    page: page,
+    page,
     search: filters.value.search,
     payment_status: filters.value.payment_status,
     delivered: filters.value.delivered,
   };
 
-  Object.keys(params).forEach(key => {
+  Object.keys(params).forEach((key) => {
     if (params[key] === '' || params[key] === null) {
       delete params[key];
     }
   });
 
   axios
-    .get('/api/customers', { params: params })
+    .get('/api/customers', { params })
     .then((r) => {
       customers.value = r.data.data;
       pagination.value.currentPage = r.data.current_page;
@@ -513,18 +518,55 @@ function remove(id) {
     .catch(console.error);
 }
 
+// Páginas compactas: 1 … (current-2) (current-1) current (current+1) (current+2) … last
+const compactPages = computed(() => {
+  const total = Number(pagination.value.lastPage || 1);
+  const current = Number(pagination.value.currentPage || 1);
+
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const windowSet = new Set([
+    1,
+    total,
+    current - 2,
+    current - 1,
+    current,
+    current + 1,
+    current + 2,
+  ]);
+
+  const pages = [...windowSet]
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+
+  const out = [];
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    if (i === 0) {
+      out.push(p);
+    } else {
+      const prev = pages[i - 1];
+      if (p - prev === 1) out.push(p);
+      else out.push('…', p);
+    }
+  }
+  return out;
+});
+
 onMounted(() => {
-  fetch(); // Carrega os clientes
+  fetch();
   clientFormModal = new Modal(document.getElementById('clientFormModal'));
 
-  // NOVO CÓDIGO: Carrega o contador do backend ao iniciar
-  axios.get('/api/shirt-counter')
-      .then(response => {
-          shirtCount.value = response.data.count;
-      })
-      .catch(error => {
-          console.error('Erro ao carregar o contador de camisas:', error);
-      });
+  axios
+    .get('/api/shirt-counter')
+    .then((response) => {
+      shirtCount.value = response.data.count;
+    })
+    .catch((error) => {
+      console.error('Erro ao carregar o contador de camisas:', error);
+    });
 });
 </script>
 
@@ -552,8 +594,8 @@ onMounted(() => {
 
 /* Estilos para os botões de ação (editar/excluir) para combinar com Estoque */
 .btn-group-sm .btn {
-  padding: .25rem .5rem; /* Ajuste o padding para botões pequenos */
-  font-size: .875rem; /* Ajuste o tamanho da fonte */
+  padding: .25rem .5rem;
+  font-size: .875rem;
   line-height: 1.5;
   border-radius: .2rem;
 }
@@ -561,7 +603,7 @@ onMounted(() => {
 .btn-outline-warning {
   --bs-btn-color: var(--bs-warning);
   --bs-btn-border-color: var(--bs-warning);
-  --bs-btn-hover-color: var(--bs-black); /* Para modo escuro, o texto pode precisar ser preto no hover */
+  --bs-btn-hover-color: var(--bs-black);
   --bs-btn-hover-bg: var(--bs-warning);
   --bs-btn-hover-border-color: var(--bs-warning);
   --bs-btn-active-color: var(--bs-black);
@@ -582,5 +624,12 @@ onMounted(() => {
   --bs-btn-active-border-color: var(--bs-danger);
   --bs-btn-disabled-color: var(--bs-danger);
   --bs-btn-disabled-border-color: var(--bs-danger);
+}
+
+/* Compacta visualmente a paginação */
+.pagination .page-link {
+  min-width: 34px;
+  text-align: center;
+  padding: .25rem .5rem;
 }
 </style>
